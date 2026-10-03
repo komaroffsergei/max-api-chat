@@ -118,7 +118,17 @@ npm run build
 
 ## Развёртывание
 
-Сборка выполняется локально. На VPS попадает только содержимое `dist`, включая отдельный `release.json` с версией. Каталог релизов — `/srv/portfolio/max-api/releases/`; Nginx смотрит на `/srv/portfolio/max-api/current`.
+Исходники: **https://github.com/komaroffsergei/max-api-chat**. Проверки и выпуск: [GitHub Actions](https://github.com/komaroffsergei/max-api-chat/actions).
+
+При push в `main` GitHub Actions ставит зависимости из lockfile, проверяет типы приложения и тестов, lint, unit/integration и браузерные сценарии, собирает сайт и проверяет историю на секреты. Для pull request выполняются те же проверки, но деплой и его ключ недоступны. Рабочий ключ GREEN-API для CI не нужен.
+
+После успешных проверок готовый артефакт передаётся на VPS. `deploy/package-release.mjs` добавляет ZIP исходников текущего коммита, версию и SHA-256. Каталог релизов — `/srv/portfolio/max-api/releases/`; Nginx смотрит на `/srv/portfolio/max-api/current`. Приложение на сервере не собирается.
+
+В GitHub настроены environment `production`, secrets `MAX_API_DEPLOY_KEY`, `MAX_API_KNOWN_HOSTS` и variables `MAX_API_HOST`, `MAX_API_USER`. Приватный SSH-ключ хранится вне Git. Его строка в `authorized_keys` содержит `restrict` и forced command `/usr/local/libexec/max-api-ci`: разрешены только `upload VERSION SHA256` и `activate VERSION SHA256` этого приложения. Shell, SCP, туннели и другие каталоги этому ключу недоступны.
+
+Неудачный выпуск можно повторить из Actions. Повтор той же загрузки принимается только при том же SHA-256. Повторное переключение проверенного релиза не теряет предыдущую версию. `Re-run all jobs` собирает новый `run_attempt`; `Re-run failed jobs` повторно использует проверенный артефакт. Внутри последовательного deploy проверяется текущий `main`, чтобы старый медленный запуск не выпустился после нового.
+
+`deploy/ci-entry.py` и `deploy/activate-release.sh` устанавливаются оператором на VPS с владельцем root. Сам workflow не перезаписывает их. При изменении серверных правил оператор сначала проверяет и устанавливает новый файл. Сервер сверяет контрольную сумму, запрещает ссылки и выход из каталога внутри архива, ограничивает его размер и сериализует переключения. После переключения проверяет release marker через настоящий HTTPS и возвращает прежний релиз, если проверка не прошла.
 
 Для первого запуска используется `deploy/nginx.http.conf`: он обслуживает только проверку домена Let's Encrypt. После выпуска сертификата устанавливается `deploy/nginx.conf`. Перед reload выполняется `nginx -t`.
 
@@ -132,6 +142,8 @@ bash /tmp/max-api-activate-release.sh /tmp/max-api-RELEASE_ID.tar.gz SHA256 RELE
 ```
 
 Если предыдущий релиз есть, откат можно сделать без перезапуска приложений: переключить `current.next` на каталог из `previous`, затем `mv -Tf current.next current`. Здесь нет backend-процесса или схемы БД для отката. При первом выпуске предыдущего рабочего релиза ещё нет.
+
+Подтверждённые баги и проверка исправлений описаны в [docs/testing.md](docs/testing.md). Приватные скриншоты настоящей переписки в репозиторий не входят.
 
 ## Документация провайдера
 
