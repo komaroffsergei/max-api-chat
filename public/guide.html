@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Как подключиться к Telegram-чату, написать человеку по номеру телефона и прочитать ответ. Инструкция со скриншотами.">
+  <meta name="color-scheme" content="light">
+  <title>Как пользоваться · Telegram-чат</title>
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body>
+  <a class="skip-link" href="#guide">К инструкции</a>
+  <header class="page-header">
+    <a class="brand" href="/" aria-label="Telegram-чат, главная"><span class="brand-icon" aria-hidden="true">↗</span>Telegram <span class="brand-note">/ GREEN-API</span></a>
+    <a class="back-link" href="/">Открыть чат <span aria-hidden="true">↗</span></a>
+  </header>
+
+  <main id="guide">
+    <section class="intro" aria-labelledby="page-title">
+      <p class="eyebrow">Инструкция / 03.10.2026</p>
+      <h1 id="page-title">Как пользоваться</h1>
+      <p class="lead">Здесь можно написать человеку в Telegram и прочитать его ответ. На компьютере чаты слева, переписка справа. На телефоне они открываются по очереди. Работает только с текстом.</p>
+      <nav class="contents" aria-label="Разделы инструкции">
+        <a href="#connect">01 · Подключиться</a><a href="#new-chat">02 · Открыть чат</a><a href="#messages">03 · Переписываться</a><a href="#mobile">04 · С телефона</a><a href="#trouble">Если не получается</a><a href="/local-run.html">Локальный запуск ↗</a>
+      </nav>
+      <aside class="memory-note"><strong>Не обновляй страницу во время переписки.</strong> После обновления или кнопки «Выйти» придётся подключиться заново. Список чатов и сообщения в этой вкладке очистятся. Уже отправленные сообщения останутся в Telegram.</aside>
+    </section>
+
+    <section id="connect" class="section" aria-labelledby="connect-title">
+      <div class="section-heading"><span class="step">01</span><h2 id="connect-title">Подключиться</h2></div>
+      <div class="connect-layout">
+        <div>
+          <p>Для входа нужны два значения из <a href="https://console.green-api.com/instanceList" target="_blank" rel="noopener noreferrer">личного кабинета GREEN-API</a>. Открой своё подключение к Telegram и скопируй их:</p>
+          <ol class="instructions">
+            <li><code>idInstance</code> — номер подключения. Вставь его в первое поле.</li>
+            <li><code>apiTokenInstance</code> — ключ доступа. Вставь во второе поле. Он скрыт, как пароль.</li>
+            <li>Нажми <strong>«Подключиться»</strong>. Дождись списка чатов и надписи «Подключено».</li>
+          </ol>
+          <p>Это не твой номер телефона и не пароль от Telegram. Если данные тебе выдали, просто вставь их в эти два поля. Ключ никому не пересылай.</p>
+          <p class="small">«Дополнительные настройки» обычно открывать не нужно. Если подключаешься впервые и возникает ошибка, внизу есть отдельный блок с настройками.</p>
+        </div>
+        <figure class="login-figure">
+          <a href="/guide/images/connect.jpg" target="_blank" rel="noopener noreferrer" aria-label="Открыть скриншот формы подключения крупно"><img src="/guide/images/connect.jpg" alt="Поля idInstance и apiTokenInstance, ниже кнопка Подключиться" width="374" height="639" fetchpriority="high"></a>
+          <figcaption>Экран подключения. Номер на примере вымышленный. Нажми на картинку, чтобы увеличить.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="new-chat" class="section" aria-labelledby="new-chat-title">
+      <div class="section-heading"><span class="step">02</span><h2 id="new-chat-title">Открыть чат</h2></div>
+      <ol class="instructions">
+        <li>В поле <strong>«Номер с кодом страны»</strong> введи телефон собеседника. Для российского номера начни с <strong>+7</strong>. Пробелы и скобки можно оставить.</li>
+        <li>Нажми <strong>+</strong> рядом с номером. Если человек найден в Telegram, откроется переписка.</li>
+        <li>Чтобы написать другому человеку, введи его номер там же. Между открытыми чатами переключайся в списке слева.</li>
+      </ol>
+      <p>Старая переписка сюда не подгружается. После подключения список может быть пустым — это нормально.</p>
+    </section>
+
+    <section id="messages" class="section" aria-labelledby="messages-title">
+      <div class="section-heading"><span class="step">03</span><h2 id="messages-title">Написать и получить ответ</h2></div>
+      <ol class="instructions">
+        <li>Напиши текст в поле внизу и нажми кнопку со стрелкой. На клавиатуре можно нажать <kbd>Enter</kbd>. Для новой строки — <kbd>Shift</kbd> + <kbd>Enter</kbd>.</li>
+        <li>Сообщение появится справа. Надпись <strong>«В очереди»</strong> означает, что отправка принята, но доставка ещё не подтверждена. Две серые галочки — доставлено, две фиолетовые — прочитано.</li>
+        <li>Оставь вкладку открытой. Когда собеседник ответит в Telegram, его сообщение появится слева в этой переписке. Страницу обновлять не надо.</li>
+      </ol>
+      <figure class="wide-figure">
+        <a href="/guide/images/chat.jpg" target="_blank" rel="noopener noreferrer" aria-label="Открыть скриншот переписки крупно"><img src="/guide/images/chat.jpg" alt="Список чатов слева. Справа переписка: своё сообщение и ответ собеседника" width="1120" height="720" loading="lazy"></a>
+        <figcaption>Пример переписки. Телефон и сообщения вымышленные.</figcaption>
+      </figure>
+      <p>Если ответ пришёл в другой чат, выбери его в списке. Если читаешь старые сообщения выше, переписка не перескочит вниз. Вернуться к последнему сообщению можно кнопкой со стрелкой вниз.</p>
+      <p>Слишком длинный текст разбей на несколько сообщений. Под полем есть счётчик; предел — 4096.</p>
+
+      <!-- Схемы показывают действия пользователя. Техническое устройство здесь не нужно. -->
+      <div class="diagrams">
+        <figure class="diagram">
+          <figcaption>Отправка</figcaption>
+          <ol class="flow"><li><strong>Выбери чат</strong><span>Нажми на собеседника в списке</span></li><li><strong>Напиши текст</strong><span>Нажми стрелку или Enter</span></li><li><strong>Посмотри на статус</strong><span>Галочки покажут доставку и прочтение</span></li></ol>
+        </figure>
+        <figure class="diagram">
+          <figcaption>Ответ</figcaption>
+          <ol class="flow"><li><strong>Оставь чат открытым</strong><span>Обновлять страницу не нужно</span></li><li><strong>Собеседник отвечает в Telegram</strong><span>Обычным сообщением</span></li><li><strong>Прочитай ответ здесь</strong><span>В чате с этим собеседником</span></li></ol>
+        </figure>
+      </div>
+    </section>
+
+    <section id="mobile" class="section" aria-labelledby="mobile-title">
+      <div class="section-heading"><span class="step">04</span><h2 id="mobile-title">С телефона</h2></div>
+      <div class="help-layout">
+        <div>
+          <p>После подключения увидишь список чатов. Введи номер и нажми <strong>+</strong> или выбери уже открытый чат.</p>
+          <p>В переписке список скрыт, чтобы осталось место для сообщений. Стрелка назад вверху возвращает к списку. Сообщения при этом остаются.</p>
+          <p>Для отправки используй кнопку со стрелкой рядом с полем текста.</p>
+        </div>
+        <figure class="mobile-figure">
+          <a href="/guide/images/mobile.jpg" target="_blank" rel="noopener noreferrer" aria-label="Открыть скриншот мобильного чата крупно"><img src="/guide/images/mobile.jpg" alt="Чат на телефоне: кнопка назад вверху, сообщения в центре, поле текста и отправка внизу" width="390" height="844" loading="lazy"></a>
+          <figcaption>С телефона: назад — к списку, стрелка внизу — отправить.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="trouble" class="section" aria-labelledby="trouble-title">
+      <div class="section-heading"><span class="step">05</span><h2 id="trouble-title">Если не получается</h2></div>
+      <div class="troubleshooting">
+        <details><summary>Не получается подключиться</summary><p>Скопируй номер подключения и ключ ещё раз, без лишних пробелов. В кабинете GREEN-API у подключения должен быть статус «Authorized». Если Telegram ещё не подключён, сначала подключи его там.</p></details>
+        <details><summary>Номер не найден</summary><p>Проверь телефон и код страны. У собеседника должен быть Telegram на этом номере. Если номер верный, поиск может быть закрыт его настройками приватности.</p></details>
+        <details><summary>Ответ не появляется</summary><p>Проверь интернет и выбери нужного собеседника в списке. Оставь приложение открытым в одной вкладке. Если ответа всё ещё нет, проверь настройки первого подключения ниже или обратись к тому, кто выдал данные для входа.</p></details>
+        <details><summary>«Приём приостановлен»</summary><p>Прочитай сообщение над перепиской. Если этот чат открыт ещё в одной вкладке, закрой лишнюю. Затем нажми «Повторить приём». Если Telegram отключился, подключи его заново в кабинете GREEN-API.</p></details>
+        <details><summary>«Результат отправки неизвестен»</summary><p>Сначала открой обычный Telegram и посмотри, появилось ли там сообщение. Оно могло уйти. Если сразу отправить ещё раз, собеседник может получить два одинаковых сообщения.</p></details>
+        <details><summary>После обновления всё пропало</summary><p>Так работает этот чат: сообщения хранятся только до обновления или выхода. Подключись и открой чат по номеру заново. Старые сообщения здесь не восстановятся; уже отправленные можно посмотреть в Telegram.</p></details>
+      </div>
+    </section>
+
+    <section class="section" aria-label="Первое подключение">
+      <details class="first-setup">
+        <summary>Первое подключение: настройки GREEN-API</summary>
+        <div class="setup-content">
+          <p>Если данные для входа уже подготовили, этот блок можно пропустить. Если настраиваешь сам, открой своё подключение в <a href="https://console.green-api.com/instanceList" target="_blank" rel="noopener noreferrer">кабинете GREEN-API</a>.</p>
+          <p>Выбери отдельное подключение для этого чата. Не меняй настройки того, которое уже используется другим приложением.</p>
+          <p>В его настройках выставь значения из таблицы и сохрани:</p>
+          <div class="settings" role="group" aria-label="Настройки первого подключения">
+            <div><code>webhookUrl</code><strong>пусто</strong><span>Очисти поле адреса.</span></div>
+            <div><code>incomingWebhook</code><strong>yes</strong><span>Чтобы получать ответы.</span></div>
+            <div><code>outgoingWebhook</code><strong>yes</strong><span>Чтобы видеть доставку и прочтение.</span></div>
+            <div><code>stateWebhook</code><strong>yes</strong><span>Чтобы узнать, если Telegram отключится.</span></div>
+          </div>
+          <p>Режим отладки входящих уведомлений выключи. Затем вернись в чат и подключись.</p>
+          <p>Если адрес <code>apiUrl</code> в кабинете отличается от адреса в форме, открой «Дополнительные настройки» в форме подключения и вставь адрес из кабинета.</p>
+        </div>
+      </details>
+    </section>
+  </main>
+
+  <footer class="page-footer"><span>Сергей Комаров · Telegram-чат</span><nav aria-label="Ссылки"><a href="/">Открыть чат ↗</a><a href="https://console.green-api.com/instanceList" target="_blank" rel="noopener noreferrer">Личный кабинет GREEN-API ↗</a></nav></footer>
+</body>
+</html>

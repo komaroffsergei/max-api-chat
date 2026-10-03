@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Как скачать исходники Telegram-чата, установить Node.js и запустить проект на своём компьютере. Команды для Windows, macOS и Linux.">
+  <meta name="color-scheme" content="light">
+  <title>Локальный запуск · Telegram-чат</title>
+  <link rel="stylesheet" href="/guide/guide.css">
+</head>
+<body>
+  <a class="skip-link" href="#guide">К инструкции</a>
+  <header class="page-header">
+    <a class="brand" href="/" aria-label="Telegram-чат, главная"><span class="brand-icon" aria-hidden="true">↗</span>Telegram <span class="brand-note">/ GREEN-API</span></a>
+    <a class="back-link" href="/guide.html">Как пользоваться <span aria-hidden="true">↗</span></a>
+  </header>
+
+  <main id="guide">
+    <section class="intro" aria-labelledby="page-title">
+      <p class="eyebrow">Запуск на своём компьютере / 03.10.2026</p>
+      <h1 id="page-title">Локальный запуск</h1>
+      <p class="lead">Скачиваешь проект, устанавливаешь зависимости и открываешь чат в браузере. Нужны Node.js и интернет. Данные для входа вводишь уже в чате, как на сайте.</p>
+      <a class="download-link" href="https://max-api.komaroff-dev.ru/downloads/telegram-chat-source.zip" download="telegram-chat-source.zip">Скачать исходники ZIP <span aria-hidden="true">↓</span></a>
+      <nav class="contents" aria-label="Разделы инструкции">
+        <a href="#node">01 · Node.js</a><a href="#files">02 · Исходники</a><a href="#start">03 · Запуск</a><a href="#connect">04 · Подключение</a><a href="#trouble">Если не запускается</a>
+      </nav>
+      <aside class="memory-note">В архиве исходники, инструкция и тесты. Рабочих ключей и переписки там нет. Ничего прописывать в файлах перед запуском не нужно.</aside>
+    </section>
+
+    <section id="node" class="section" aria-labelledby="node-title">
+      <div class="section-heading"><span class="step">01</span><h2 id="node-title">Установить Node.js</h2></div>
+      <p>Если Node.js уже установлен, сначала проверь версию. На Windows открой PowerShell и выполни:</p>
+      <pre class="command-block"><code>node --version
+npm.cmd --version</code></pre>
+      <p>Этот проект проверен на Node.js <strong>22.22.2</strong> и npm <strong>10.9.7</strong>. Для такого же запуска используй ветку <strong>22.x</strong>, не ниже 22.12.</p>
+      <p>Если команды не найдены или версия старая, скачай Node.js с <a href="https://nodejs.org/en/download" target="_blank" rel="noopener noreferrer">официальной страницы</a>. Выбери версию 22.x и свою систему. Для обычного Windows-компьютера — установщик <strong>.msi</strong> для <strong>x64</strong>. npm устанавливается вместе с ним.</p>
+      <p>После установки закрой PowerShell, открой заново и повтори проверку выше. На macOS/Linux вместо <code>npm.cmd</code> используй <code>npm</code>.</p>
+    </section>
+
+    <section id="files" class="section" aria-labelledby="files-title">
+      <div class="section-heading"><span class="step">02</span><h2 id="files-title">Распаковать проект</h2></div>
+      <ol class="instructions">
+        <li>Скачай ZIP по ссылке в начале страницы. На Windows нажми на архив правой кнопкой и выбери <strong>«Извлечь всё…»</strong>.</li>
+        <li>Открой папку <strong>telegram-chat</strong> внутри распакованного архива. В ней должны лежать <code>package.json</code>, <code>package-lock.json</code> и <code>README.md</code>.</li>
+        <li>В адресной строке Проводника напиши <code>powershell</code> и нажми Enter. Откроется окно команд в этой папке.</li>
+      </ol>
+      <p>На macOS/Linux открой терминал и перейди в эту же папку. Команды ниже нужно выполнять там, где лежит <code>package.json</code>.</p>
+    </section>
+
+    <section id="start" class="section" aria-labelledby="start-title">
+      <div class="section-heading"><span class="step">03</span><h2 id="start-title">Запустить чат</h2></div>
+      <p>В PowerShell выполни первую команду и дождись окончания. Потом выполни вторую:</p>
+      <pre class="command-block"><code>npm.cmd ci
+npm.cmd run dev -- --host 127.0.0.1 --port 5173 --strictPort</code></pre>
+      <p><code>npm.cmd ci</code> скачает зависимости проекта. Эту команду достаточно выполнить после распаковки. Для следующих запусков нужна только вторая.</p>
+      <p>Когда в окне появится адрес <strong>http://127.0.0.1:5173/</strong>, открой его в браузере. Увидишь форму подключения к Telegram.</p>
+      <p>Окно PowerShell оставь открытым. Чтобы остановить чат, нажми в нём <kbd>Ctrl</kbd> + <kbd>C</kbd>.</p>
+      <details class="first-setup">
+        <summary>Команды для macOS и Linux</summary>
+        <div class="setup-content">
+          <pre class="command-block"><code>npm ci
+npm run dev -- --host 127.0.0.1 --port 5173 --strictPort</code></pre>
+          <p>Адрес в браузере тот же: <strong>http://127.0.0.1:5173/</strong>. Остановка — Ctrl+C в терминале.</p>
+        </div>
+      </details>
+      <!-- Здесь только порядок запуска. Устройство проекта описано в README архива. -->
+      <div class="diagrams">
+        <figure class="diagram">
+          <figcaption>Первый запуск</figcaption>
+          <ol class="flow"><li><strong>Распакуй ZIP</strong><span>Открой папку telegram-chat</span></li><li><strong>Установи зависимости</strong><span>npm.cmd ci</span></li><li><strong>Запусти и открой в браузере</strong><span>Вторая команда → 127.0.0.1:5173</span></li></ol>
+        </figure>
+        <figure class="diagram">
+          <figcaption>Следующий запуск</figcaption>
+          <ol class="flow"><li><strong>Открой PowerShell в папке проекта</strong><span>Исходники уже распакованы</span></li><li><strong>Выполни команду запуска</strong><span>Повторно скачивать зависимости не нужно</span></li><li><strong>Открой чат и подключись</strong><span>Введи свои данные GREEN-API</span></li></ol>
+        </figure>
+      </div>
+    </section>
+
+    <section id="connect" class="section" aria-labelledby="connect-title">
+      <div class="section-heading"><span class="step">04</span><h2 id="connect-title">Подключить Telegram</h2></div>
+      <div class="connect-layout">
+        <div>
+          <p>В форме введи <code>idInstance</code> и <code>apiTokenInstance</code> из своего <a href="https://console.green-api.com/instanceList" target="_blank" rel="noopener noreferrer">кабинета GREEN-API</a>. Это те же данные, с которыми подключаешься на сайте.</p>
+          <p>Нажми «Подключиться», введи номер собеседника с кодом страны и создай чат кнопкой <strong>+</strong>.</p>
+          <p>Дальше всё как в <a href="/guide.html" target="_blank" rel="noopener noreferrer">инструкции по переписке</a>. Там же описаны настройки первого подключения.</p>
+          <p>Для одного подключения оставь только одну открытую вкладку чата: локальную или на сайте. После обновления страницы данные для входа и переписка в этой вкладке очистятся.</p>
+        </div>
+        <figure class="login-figure">
+          <a href="/guide/images/connect.jpg" target="_blank" rel="noopener noreferrer" aria-label="Открыть скриншот формы подключения крупно"><img src="/guide/images/connect.jpg" alt="Форма локального чата: idInstance, закрытое поле apiTokenInstance и кнопка Подключиться" width="374" height="639" loading="lazy"></a>
+          <figcaption>Такая форма откроется после запуска. Данные на скриншоте вымышленные.</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section id="trouble" class="section" aria-labelledby="trouble-title">
+      <div class="section-heading"><span class="step">05</span><h2 id="trouble-title">Если не запускается</h2></div>
+      <div class="troubleshooting">
+        <details><summary>Команда node или npm.cmd не найдена</summary><p>Проверь, что Node.js установлен. Закрой окно команд и открой заново: после установки новое окно должно увидеть Node.js и npm.</p></details>
+        <details><summary>Не найден package.json</summary><p>Команды выполняются не в той папке. Вернись в распакованный проект и открой папку telegram-chat, где лежит package.json. Открой PowerShell оттуда.</p></details>
+        <details><summary>Порт 5173 уже занят</summary><p>Если чат уже запущен в другом окне, используй его или останови Ctrl+C. Можно выбрать другой порт:</p><pre class="command-block"><code>npm.cmd run dev -- --host 127.0.0.1 --port 5174 --strictPort</code></pre><p>Тогда адрес — http://127.0.0.1:5174/. На macOS/Linux замени npm.cmd на npm.</p></details>
+        <details><summary>Зависимости не скачиваются</summary><p>Проверь интернет. Если npm сообщает о неподходящей версии Node.js, установи 22.x не ниже 22.12. После этого снова выполни npm.cmd ci.</p></details>
+        <details><summary>Форма открылась, но Telegram не подключается</summary><p>Сам проект уже запущен. Проверь данные для входа и статус подключения в кабинете GREEN-API. Подсказки есть в <a href="/guide.html#trouble" target="_blank" rel="noopener noreferrer">инструкции по переписке</a>.</p></details>
+      </div>
+    </section>
+  </main>
+
+  <footer class="page-footer"><span>Сергей Комаров · Telegram-чат</span><nav aria-label="Ссылки"><a href="/guide.html">Как пользоваться ↗</a><a href="https://nodejs.org/en/download" target="_blank" rel="noopener noreferrer">Node.js ↗</a><a href="https://vite.dev/guide/" target="_blank" rel="noopener noreferrer">Требования к Node.js ↗</a></nav></footer>
+</body>
+</html>
