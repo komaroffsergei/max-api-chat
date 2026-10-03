@@ -223,3 +223,52 @@ test('native Web Locks permit one tab per instance and release on tab close', as
   await expect(second.getByRole('article', { name: 'Входящее сообщение', exact: true })).toContainText('Ответ в оставшейся вкладке');
   expect(api.unexpectedExternal).toEqual([]);
 });
+
+test('invalid API server hidden in closed details is revealed before native validation blocks submission', async ({ page, context }) => {
+  const api = await installMock(context);
+  await page.goto('/');
+  await page.getByText('Дополнительные настройки', { exact: true }).click();
+  await page.getByLabel('API-сервер', { exact: true }).fill('not-a-url');
+  await page.getByText('Дополнительные настройки', { exact: true }).click();
+  await page.getByLabel('idInstance', { exact: true }).fill(credentials.idInstance);
+  await page.getByLabel('apiTokenInstance', { exact: true }).fill(credentials.apiTokenInstance);
+  await page.getByRole('button', { name: 'Подключиться', exact: true }).click();
+  await expect(page.getByLabel('API-сервер', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('API-сервер', { exact: true })).toBeFocused();
+  expect(api.calls).toEqual([]);
+  await page.getByLabel('API-сервер', { exact: true }).fill(credentials.apiUrl);
+  await page.getByRole('button', { name: 'Подключиться', exact: true }).click();
+  await expect(page.getByRole('textbox', { name: 'Номер телефона', exact: true })).toBeVisible();
+  expect(api.unexpectedExternal).toEqual([]);
+});
+
+// Проверяем настоящую геометрию браузера: ResizeObserver должен отличать низ списка от чтения истории.
+test('sticks to the latest message across viewport and composer resize but preserves older reading position', async ({ page, context }, testInfo) => {
+  const api = await installMock(context);
+  await page.goto('/');
+  await login(page);
+  await openChat(page);
+  for (let index = 0; index < 45; index += 1) {
+    api.queue.push(receipt(index + 1, incomingBody({ id: `resize-${index}`, text: `Сообщение ${index + 1}: строка для проверки прокрутки` })));
+  }
+  const log = page.getByRole('log', { name: 'Сообщения', exact: true });
+  const gap = () => log.evaluate(element => element.scrollHeight - element.clientHeight - element.scrollTop);
+  await expect(page.getByRole('article', { name: 'Входящее сообщение', exact: true })).toHaveCount(45);
+  await expect.poll(gap).toBeLessThan(2);
+  const width = testInfo.project.name === 'mobile' ? 390 : 1440;
+  await page.setViewportSize({ width, height: 480 });
+  await expect.poll(gap).toBeLessThan(2);
+  const composer = page.getByRole('textbox', { name: 'Сообщение', exact: true });
+  await composer.fill('Черновик\n'.repeat(8));
+  await expect.poll(gap).toBeLessThan(2);
+  await log.evaluate(element => { element.scrollTop = 0; element.dispatchEvent(new Event('scroll')); });
+  await expect(page.getByRole('button', { name: 'К новым сообщениям', exact: true })).toBeVisible();
+  await page.setViewportSize({ width, height: 700 });
+  await composer.fill('Короткий черновик');
+  api.queue.push(receipt(46, incomingBody({ id: 'while-reading', text: 'Новый ответ во время чтения истории' })));
+  await expect(page.getByRole('article', { name: 'Входящее сообщение', exact: true })).toHaveCount(46);
+  await expect.poll(() => log.evaluate(element => element.scrollTop)).toBe(0);
+  await page.getByRole('button', { name: 'К новым сообщениям', exact: true }).click();
+  await expect.poll(gap).toBeLessThan(2);
+  expect(api.unexpectedExternal).toEqual([]);
+});

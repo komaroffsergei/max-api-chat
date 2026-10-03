@@ -48,7 +48,7 @@ export function ChatSidebar({ chats, activeChatId, idInstance, polling, creating
         const lastMessage = chat.messages.at(-1);
         return <button type="button" key={chat.id} className={`chat-row ${activeChatId === chat.id ? 'selected' : ''}`} aria-current={activeChatId === chat.id ? 'page' : undefined} onClick={() => onSelectChat(chat.id)}>
           <span className="chat-avatar">{chat.phone ? chat.phone.slice(-2) : chat.title.slice(0, 2).toUpperCase()}</span>
-          <span className="chat-row-content"><span className="chat-row-top"><span className="chat-row-title">{chat.phone ? formatPhoneNumber(chat.phone) : chat.title}</span>{lastMessage && <time dateTime={new Date(lastMessage.timestamp).toISOString()}>{chatTime(lastMessage.timestamp)}</time>}</span><span className="chat-row-preview">{chat.draft ? <><span className="draft-label">Черновик: </span>{chat.draft}</> : lastMessage ? `${lastMessage.direction === 'outgoing' ? 'Вы: ' : ''}${lastMessage.text}` : 'Начните переписку'}</span></span>
+          <span className="chat-row-content"><span className="chat-row-top"><span className="chat-row-title">{chat.phone ? formatPhoneNumber(chat.phone) : chat.title}</span>{chat.isGroup && <span className="chat-kind">Группа</span>}{lastMessage && <time dateTime={new Date(lastMessage.timestamp).toISOString()}>{chatTime(lastMessage.timestamp)}</time>}</span><span className="chat-row-preview">{chat.draft ? <><span className="draft-label">Черновик: </span>{chat.draft}</> : lastMessage ? `${lastMessage.direction === 'outgoing' ? 'Вы: ' : ''}${lastMessage.text}` : 'Начните переписку'}</span></span>
         </button>;
       })}
     </nav>

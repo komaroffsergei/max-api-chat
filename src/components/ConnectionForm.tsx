@@ -21,6 +21,13 @@ export function ConnectionForm({ connecting, error, onConnect }: Props) {
     void onConnect({ idInstance, apiTokenInstance, apiUrl });
   }
 
+  function showInvalidApiField(event: FormEvent<HTMLInputElement>) {
+    // Браузер не может показать ошибку в поле, скрытом закрытыми настройками.
+    const options = event.currentTarget.closest('details');
+    if (options) options.open = true;
+    event.currentTarget.focus();
+  }
+
   return <main className="connection-page">
     <div className="connection-brand"><span className="brand-mark"><Icon name="telegram" /></span><span>Telegram</span></div>
     <section className="connection-panel" aria-labelledby="connection-title">
@@ -35,7 +42,7 @@ export function ConnectionForm({ connecting, error, onConnect }: Props) {
         <details className="api-options">
           <summary>Дополнительные настройки</summary>
           <label htmlFor="api-url">API-сервер</label>
-          <input id="api-url" name="apiUrl" type="url" autoComplete="off" required value={apiUrl} onChange={event => setApiUrl(event.target.value)} disabled={connecting} aria-describedby="api-help" />
+          <input id="api-url" name="apiUrl" type="url" autoComplete="off" required value={apiUrl} onChange={event => setApiUrl(event.target.value)} onInvalid={showInvalidApiField} disabled={connecting} aria-describedby="api-help" />
           <p id="api-help">Адрес API из вашего личного кабинета.</p>
         </details>
         {error && <p className="form-error" role="alert">{error}</p>}

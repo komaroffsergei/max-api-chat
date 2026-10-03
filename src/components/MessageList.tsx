@@ -35,6 +35,17 @@ export function MessageList({ chatId, messages }: { chatId: string; messages: Me
     previousChatRef.current = chatId;
   }, [chatId, messages]);
 
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    if (!list || typeof ResizeObserver === 'undefined') return;
+    const observer = new ResizeObserver(() => {
+      // Клавиатура, размер окна и многострочный ввод меняют высоту списка без новых сообщений.
+      if (atBottomRef.current) list.scrollTop = list.scrollHeight;
+    });
+    observer.observe(list);
+    return () => observer.disconnect();
+  }, []);
+
   function onScroll() {
     const list = listRef.current;
     if (!list) return;

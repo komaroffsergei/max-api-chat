@@ -122,6 +122,24 @@ describe('real React flow with a fully mocked HTTP boundary', () => {
     expect(within(screen.getByRole('log')).getAllByText('Ответ для теста')).toHaveLength(1);
   });
 
+  // Адресат группового ответа должен быть виден как группа, а не как имя её участника.
+  it('labels a group recipient with chatName and group context rather than its senderName', async () => {
+    render(<App />);
+    await connect();
+    const groupId = '-10000000000000';
+    const body = incomingBody({ chat: groupId, senderName: 'Алиса', text: 'Сообщение в команде' });
+    act(() => api.push(receipt(1, { ...body, senderData: { ...body.senderData, chatName: 'Тестовая команда', chatType: 'supergroup' } })));
+    const row = await within(screen.getByRole('navigation', { name: 'Диалоги' })).findByRole('button');
+    expect(row).toHaveTextContent('Тестовая команда');
+    await userEvent.click(row);
+    const header = screen.getByRole('heading', { level: 2 });
+    expect(header).toHaveTextContent('Тестовая команда');
+    expect(screen.getByRole('main')).toHaveTextContent(/групп/i);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Сообщение' }), { target: { value: 'Ответ команде' } });
+    await userEvent.click(screen.getByRole('button', { name: 'Отправить сообщение' }));
+    expect(api.sendMessage).toHaveBeenCalledExactlyOnceWith(groupId, 'Ответ команде');
+  });
+
   it('prevents double send and retains per-chat drafts when an old request finishes after switching', async () => {
     const pending = deferred<unknown>();
     api.sendMessage.mockReturnValue(pending.promise);
@@ -155,6 +173,24 @@ describe('real React flow with a fully mocked HTTP boundary', () => {
     fireEvent.change(input, { target: { value: 'Новый черновик' } });
     await act(async () => { pending.resolve({ idMessage: 'late-sent' }); });
     expect(input).toHaveValue('Новый черновик');
+  });
+
+  // Совпадение текста не означает, что пользователь не создавал новый черновик.
+  it('does not erase a newly edited A→B→A draft when the original A send completes', async () => {
+    const pending = deferred<unknown>();
+    api.sendMessage.mockReturnValue(pending.promise);
+    render(<App />);
+    await connect();
+    await openChat();
+    const input = screen.getByRole('textbox', { name: 'Сообщение' });
+    fireEvent.change(input, { target: { value: 'Текст A' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Отправить сообщение' }));
+    fireEvent.change(input, { target: { value: 'Текст B' } });
+    fireEvent.change(input, { target: { value: 'Текст A' } });
+    await act(async () => { pending.resolve({ idMessage: 'late-original-A' }); });
+    expect(input).toHaveValue('Текст A');
+    expect(screen.getByRole('article', { name: 'Исходящее сообщение' })).toHaveTextContent('Текст A');
+    expect(api.sendMessage).toHaveBeenCalledTimes(1);
   });
 
   it('ignores an old send after logout/reconnect, clears history, and never persists credentials/messages', async () => {

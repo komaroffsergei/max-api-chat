@@ -37,6 +37,7 @@ export function useChatSession() {
   const connectingRef = useRef(false);
   const creatingRef = useRef(false);
   const sendingRef = useRef(false);
+  const draftRevisionsRef = useRef(new Map<string, number>());
 
   useEffect(() => () => {
     generationRef.current += 1;
@@ -88,6 +89,7 @@ export function useChatSession() {
     connectingRef.current = false;
     creatingRef.current = false;
     sendingRef.current = false;
+    draftRevisionsRef.current.clear();
     setSession(null);
     setConnecting(false);
     setCreatingChat(false);
@@ -108,6 +110,7 @@ export function useChatSession() {
     connectionControllerRef.current = controller;
     setConnecting(true);
     setConnectionError(null);
+    draftRevisionsRef.current.clear();
     dispatch({ type: 'clear' });
     setSession(null);
 
@@ -194,7 +197,12 @@ export function useChatSession() {
   // Запоминаем чат, черновик и сессию до запроса; автоматически отправку не повторяем.
   async function sendMessage(): Promise<void> {
     if (!session || !activeChat || !canSend || sendingRef.current) return;
-    const snapshot = { chatId: activeChat.id, text: activeChat.draft, session };
+    const snapshot = {
+      chatId: activeChat.id,
+      text: activeChat.draft,
+      draftRevision: draftRevisionsRef.current.get(activeChat.id) ?? 0,
+      session,
+    };
     if (!snapshot.text.trim()) return;
     sendingRef.current = true;
     setSendingChatId(snapshot.chatId);
@@ -204,7 +212,8 @@ export function useChatSession() {
       if (snapshot.session.controller.signal.aborted || generationRef.current !== snapshot.session.generation) return;
       dispatch({
         type: 'messageSent',
-        submittedDraft: snapshot.text,
+        // Правки A→B→A тоже создают новый черновик, хотя текст снова совпадает.
+        submittedDraft: (draftRevisionsRef.current.get(snapshot.chatId) ?? 0) === snapshot.draftRevision ? snapshot.text : undefined,
         message: { id: result.idMessage, chatId: snapshot.chatId, text: snapshot.text, timestamp: Date.now(), direction: 'outgoing', status: 'queued' },
       });
     } catch (error) {
@@ -228,12 +237,17 @@ export function useChatSession() {
     }
   }
 
+  function setDraft(chatId: string, text: string) {
+    draftRevisionsRef.current.set(chatId, (draftRevisionsRef.current.get(chatId) ?? 0) + 1);
+    dispatch({ type: 'setDraft', chatId, text });
+  }
+
   return {
     state, activeChat, session, connecting, connectionError, newChatError,
     creatingChat, sendingChatId, polling, canSend,
     connect, logout, createChat, sendMessage,
     selectChat: (chatId: string) => dispatch({ type: 'selectChat', chatId }),
-    setDraft: (chatId: string, text: string) => dispatch({ type: 'setDraft', chatId, text }),
+    setDraft,
     retryPolling: () => setPollRestart(value => value + 1),
   };
 }

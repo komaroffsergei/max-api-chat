@@ -22,7 +22,7 @@ export function ChatWindow({ chat, polling, hints, sending, canSend, onBack, onR
 
   return <main className="chat-window">
     <header className="chat-header">
-      {chat ? <><button type="button" className="icon-button mobile-back" aria-label="Назад к чатам" onClick={onBack}><Icon name="arrowLeft" /></button><span className="chat-avatar header-avatar">{chat.phone ? chat.phone.slice(-2) : chat.title.slice(0, 2).toUpperCase()}</span><div><h2>{chat.phone ? formatPhoneNumber(chat.phone) : chat.title}</h2><p>Telegram</p></div></> : <div className="chat-header-empty"><span>Переписка</span><span>Telegram</span></div>}
+      {chat ? <><button type="button" className="icon-button mobile-back" aria-label="Назад к чатам" onClick={onBack}><Icon name="arrowLeft" /></button><span className="chat-avatar header-avatar">{chat.phone ? chat.phone.slice(-2) : chat.title.slice(0, 2).toUpperCase()}</span><div><h2>{chat.phone ? formatPhoneNumber(chat.phone) : chat.title}</h2><p>{chat.isGroup ? 'Групповой чат · Telegram' : 'Telegram'}</p></div></> : <div className="chat-header-empty"><span>Переписка</span><span>Telegram</span></div>}
     </header>
     {polling.message && <div className={`session-banner ${polling.phase === 'backoff' ? 'reconnecting' : ''}`} role="status"><Icon name="alert" /><p>{polling.message}</p>{canRetry && <button type="button" onClick={onRetry}>Повторить приём</button>}</div>}
     {chat ? <>
