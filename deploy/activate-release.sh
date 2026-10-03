@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Скрипт запускается на VPS. Архив уже собран локально и загружен в /tmp.
+# Скрипт запускается на VPS. Сборка приходит через ограниченный SSH-вход CI.
 # Пример: bash activate-release.sh /tmp/max-api-build.tar.gz SHA256 20261002-commit
 set -euo pipefail
 
@@ -8,11 +8,10 @@ expected_sha=${2:?Укажите SHA-256 архива}
 release_id=${3:?Укажите версию релиза}
 base=/srv/portfolio/max-api
 
-[[ "$archive" == /tmp/max-api-*.tar.gz ]] || { echo 'Неожиданный путь архива' >&2; exit 1; }
+[[ "$archive" == /tmp/max-api-*.tar.gz || "$archive" == "$base/incoming/$release_id.tar.gz" ]] || { echo 'Неожиданный путь архива' >&2; exit 1; }
 [[ "$expected_sha" =~ ^[a-fA-F0-9]{64}$ ]] || { echo 'Неверный SHA-256' >&2; exit 1; }
 [[ "$release_id" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{1,79}$ ]] || { echo 'Неверная версия' >&2; exit 1; }
 release="$base/releases/$release_id"
-test ! -e "$release"
 test -d "$base/releases"
 
 printf '%s  %s\n' "$expected_sha" "$archive" | sha256sum -c -
@@ -24,14 +23,33 @@ import sys
 import tarfile
 
 with tarfile.open(sys.argv[1], 'r:gz') as archive:
-    for member in archive.getmembers():
+    total = 0
+    # Пустые файлы тоже расходуют память и inode. Не накапливаем весь список TarInfo.
+    for count, member in enumerate(archive, start=1):
+        if count > 5000:
+            raise SystemExit('В сборке больше 5000 файлов и каталогов')
         path = pathlib.PurePosixPath(member.name)
         if path.is_absolute() or '..' in path.parts or not (member.isfile() or member.isdir()):
             raise SystemExit('Небезопасная запись внутри архива')
+        if len(member.name.encode()) > 4096 or any(len(part.encode()) > 255 for part in path.parts):
+            raise SystemExit('Слишком длинный путь внутри архива')
+        total += member.size
+        if total > 30 * 1024 * 1024:
+            raise SystemExit('Распакованная сборка превышает 30 MiB')
 PY
 
-mkdir "$release"
-tar -xzf "$archive" -C "$release" --no-same-owner
+if [[ -e "$release" || -L "$release" ]]; then
+    # При потере ответа CI можно повторить только тот же проверенный артефакт.
+    test ! -L "$release" && test -d "$release"
+    test -f "$release/.archive-sha256"
+    test "$(cat "$release/.archive-sha256")" = "$expected_sha"
+else
+    mkdir "$release"
+    tar -xzf "$archive" -C "$release" --no-same-owner
+    test -f "$release/index.html"
+    test -f "$release/release.json"
+    printf '%s\n' "$expected_sha" > "$release/.archive-sha256"
+fi
 test -f "$release/index.html"
 test -f "$release/release.json"
 
@@ -66,7 +84,7 @@ if ! curl --fail --silent --show-error --max-time 15 \
     exit 1
 fi
 
-if [[ -n "$previous" ]]; then
+if [[ -n "$previous" && "$previous" != "$release" ]]; then
     ln -sfn "$previous" "$base/previous"
 fi
 printf 'RELEASE_OK %s\n' "$release_id"

@@ -8,3 +8,6 @@ coverage/
 test-results/
 playwright-report/
 .vitest/
+artifact/
+__pycache__/
+*.pyc

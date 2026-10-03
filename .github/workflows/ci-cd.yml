@@ -1,0 +1,114 @@
+name: Check and deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Quality checks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22.22.2
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npx tsc --project tests/tsconfig.json --pretty false
+      - run: npm run lint
+      - run: npm test
+      - run: python3 -m unittest discover -s tests/deploy -p '*_test.py'
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - run: npm run build
+      - name: Проверить историю на секреты
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error --location -o /tmp/gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz
+          curl --fail --silent --show-error --location -o /tmp/gitleaks-checksums.txt https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_checksums.txt
+          expected=$(awk '$2 == "gitleaks_8.30.1_linux_x64.tar.gz" { print $1 }' /tmp/gitleaks-checksums.txt)
+          test -n "$expected"
+          printf '%s  /tmp/gitleaks.tar.gz\n' "$expected" | sha256sum -c -
+          mkdir /tmp/gitleaks-bin
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp/gitleaks-bin gitleaks
+          /tmp/gitleaks-bin/gitleaks git --redact --no-banner --exit-code 1
+      - name: Подготовить закреплённую сборку
+        env:
+          RELEASE_ID: gha-${{ github.run_id }}-${{ github.run_attempt }}
+        run: node deploy/package-release.mjs
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: checked-release
+          path: artifact/
+          if-no-files-found: error
+          retention-days: 14
+          overwrite: true
+
+  deploy:
+    name: Deploy production
+    needs: check
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    environment:
+      name: production
+      url: https://max-api.komaroff-dev.ru
+    concurrency:
+      group: max-api-production
+      cancel-in-progress: false
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: checked-release
+          path: artifact
+          digest-mismatch: error
+      - name: Загрузить и переключить release
+        env:
+          DEPLOY_KEY: ${{ secrets.MAX_API_DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.MAX_API_KNOWN_HOSTS }}
+          VPS_HOST: ${{ vars.MAX_API_HOST }}
+          VPS_USER: ${{ vars.MAX_API_USER }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh_dir="$RUNNER_TEMP/max-api-ssh"
+          mkdir -m 700 "$ssh_dir"
+          trap 'rm -f "$ssh_dir/key" "$ssh_dir/known_hosts"; rmdir "$ssh_dir"' EXIT
+          printf '%s\n' "$DEPLOY_KEY" > "$ssh_dir/key"
+          printf '%s\n' "$KNOWN_HOSTS" > "$ssh_dir/known_hosts"
+          chmod 600 "$ssh_dir/key" "$ssh_dir/known_hosts"
+          release=$(jq -r .releaseId artifact/manifest.json)
+          sha=$(jq -r .archiveSha256 artifact/manifest.json)
+          commit=$(jq -r .commit artifact/manifest.json)
+          [[ "$release" =~ ^[a-zA-Z0-9][a-zA-Z0-9-]{1,79}$ && "$sha" =~ ^[a-f0-9]{64}$ ]]
+          [[ "$VPS_HOST" =~ ^[0-9.]+$ && "$VPS_USER" =~ ^[a-z][a-z0-9-]*$ ]]
+          printf '%s  artifact/release.tar.gz\n' "$sha" | sha256sum -c -
+          # Проверка внутри последовательного deploy: поздний старый CI не затирает новый main.
+          current_main=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+          if [[ "$commit" != "$current_main" ]]; then
+            printf 'Пропущен старый commit %s: main уже обновлён.\n' "$commit" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          ssh_args=(-i "$ssh_dir/key" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$ssh_dir/known_hosts" -o ConnectTimeout=15)
+          ssh "${ssh_args[@]}" "$VPS_USER@$VPS_HOST" "upload $release $sha" < artifact/release.tar.gz
+          current_main=$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)
+          if [[ "$commit" != "$current_main" ]]; then
+            printf 'Main изменился во время загрузки, переключение отменено.\n' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          ssh "${ssh_args[@]}" "$VPS_USER@$VPS_HOST" "activate $release $sha"
+          curl --fail --silent --show-error --retry 2 --max-time 20 "https://max-api.komaroff-dev.ru/release.json?ci=$release" | jq -e --arg release "$release" '.releaseId == $release'
+          printf 'Published: https://max-api.komaroff-dev.ru/ (%s)\n' "$release" >> "$GITHUB_STEP_SUMMARY"
