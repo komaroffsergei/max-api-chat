@@ -127,8 +127,10 @@ class CiEntryTest(unittest.TestCase):
     def test_existing_archive_with_another_checksum_is_not_overwritten(self):
         existing_payload = b'another synthetic archive\n'
         self.archive.write_bytes(existing_payload)
-        with self.assertRaises((SystemExit, OSError)):
+        with self.assertRaises((SystemExit, OSError)) as failure:
             self.upload()
+        if isinstance(failure.exception, SystemExit):
+            self.assertNotIn(failure.exception.code, (0, None))
         self.assertEqual(self.archive.read_bytes(), existing_payload)
         self.assertEqual(sorted(path.name for path in self.incoming.iterdir()), [self.archive.name])
         self.process.assert_not_called()
@@ -137,8 +139,10 @@ class CiEntryTest(unittest.TestCase):
         target = self.fixture_root / 'symlink-target.tar.gz'
         target.write_bytes(self.payload)
         self.archive.symlink_to(target)
-        with self.assertRaises((SystemExit, OSError)):
+        with self.assertRaises((SystemExit, OSError)) as failure:
             self.upload()
+        if isinstance(failure.exception, SystemExit):
+            self.assertNotIn(failure.exception.code, (0, None))
         self.assertTrue(self.archive.is_symlink())
         self.assertEqual(target.read_bytes(), self.payload)
         self.assertEqual(sorted(path.name for path in self.incoming.iterdir()), [self.archive.name])
@@ -149,8 +153,10 @@ class CiEntryTest(unittest.TestCase):
         target = self.fixture_root / 'symlink-target.tar.gz'
         target.write_bytes(self.payload)
         self.archive.symlink_to(target)
-        with self.assertRaises((SystemExit, OSError)):
+        with self.assertRaises((SystemExit, OSError)) as failure:
             self.activate()
+        if isinstance(failure.exception, SystemExit):
+            self.assertNotIn(failure.exception.code, (0, None))
         self.process.assert_not_called()
         self.assertTrue(self.archive.is_symlink())
         self.assertEqual(target.read_bytes(), self.payload)
