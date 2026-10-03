@@ -62,7 +62,11 @@ function object(value: unknown): Record<string, unknown> | null {
 function retryAfter(header: string | null): number | null {
   if (!header) return null;
   const seconds = Number(header);
-  if (Number.isFinite(seconds) && seconds >= 0) return Math.max(1000, seconds * 1000);
+  // При умножении большой секунды могут стать Infinity и переполнить таймер.
+  if (Number.isFinite(seconds) && seconds >= 0) {
+    const milliseconds = seconds * 1000;
+    return Number.isFinite(milliseconds) ? Math.max(1000, milliseconds) : null;
+  }
   const date = Date.parse(header);
   return Number.isFinite(date) ? Math.max(1000, date - Date.now()) : null;
 }

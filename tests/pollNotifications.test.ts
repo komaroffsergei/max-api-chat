@@ -4,9 +4,11 @@ import { chatReducer, createInitialChatState } from '../src/state/chatState';
 import { abortableDelay, runNotificationLoop, runWithConsumerLock } from '../src/state/pollNotifications';
 import { deferred, flushPromises, incomingBody, makeLockManager, receipt } from './fixtures';
 
+// Управляем ответами очереди и остановкой без сети, настоящих ключей и живых таймеров.
 function harness() {
   const controller = new AbortController();
   const api = {
+    getStateInstance: vi.fn().mockResolvedValue('authorized'),
     receiveNotification: vi.fn(),
     deleteNotification: vi.fn().mockResolvedValue(true),
   };
@@ -179,17 +181,103 @@ describe('sequential notification consumption', () => {
     await h.run();
     expect(h.api.deleteNotification).not.toHaveBeenCalled();
     expect(h.delay).not.toHaveBeenCalled();
-    expect(h.onStatus).toHaveBeenLastCalledWith({ phase: 'paused', message: 'bad receipt' });
+    expect(h.onStatus).toHaveBeenLastCalledWith(expect.objectContaining({ phase: 'paused', message: expect.stringContaining('bad receipt') }));
   });
 
   it('ACKs a state loss event and then stops consumption', async () => {
     const h = harness();
+    h.api.getStateInstance.mockResolvedValue('notAuthorized');
     h.api.receiveNotification.mockResolvedValue(receipt(1, { typeWebhook: 'stateInstanceChanged', stateInstance: 'notAuthorized' }));
     await h.run();
     expect(h.onNotification).toHaveBeenCalledWith({ kind: 'state', state: 'notAuthorized' });
     expect(h.api.deleteNotification).toHaveBeenCalledTimes(1);
     expect(h.api.receiveNotification).toHaveBeenCalledTimes(1);
     expect(h.onStatus).toHaveBeenLastCalledWith(expect.objectContaining({ phase: 'stopped' }));
+  });
+
+  // В FIFO может лежать старое событие отключения: актуальная авторизация важнее него.
+  it.each(['notAuthorized', 'starting'])('does not stop an authorized instance on a stale queued %s event', async stateInstance => {
+    const h = harness();
+    h.api.getStateInstance.mockResolvedValue('authorized');
+    h.api.receiveNotification
+      .mockResolvedValueOnce(receipt(1, { typeWebhook: 'stateInstanceChanged', stateInstance }))
+      .mockResolvedValueOnce(receipt(2, { typeWebhook: 'stateInstanceChanged', stateInstance: 'authorized' }))
+      .mockResolvedValueOnce(receipt(3, incomingBody({ id: 'after-reconnect', text: 'Актуальный ответ' })))
+      .mockImplementationOnce(h.finishReceive);
+    await h.run();
+    expect(h.api.getStateInstance).toHaveBeenCalledTimes(1);
+    expect(h.api.deleteNotification.mock.calls.map(call => call[0])).toEqual([1, 2, 3]);
+    expect(h.onNotification).toHaveBeenCalledWith(expect.objectContaining({ kind: 'incoming' }));
+    expect(h.onStatus.mock.calls.some(([value]) => value.phase === 'stopped')).toBe(false);
+  });
+
+  // Постоянная ошибка запроса требует исправления настроек, а не вечного backoff.
+  it.each([400, 404])('pauses permanent receive HTTP %i without automatically repeating it', async code => {
+    const h = harness();
+    h.api.receiveNotification
+      .mockRejectedValueOnce(new GreenApiError('permanent request error', { kind: 'http', status: code }))
+      .mockImplementationOnce(h.finishReceive);
+    await h.run();
+    expect(h.api.receiveNotification).toHaveBeenCalledTimes(1);
+    expect(h.delay).not.toHaveBeenCalled();
+    expect(h.onStatus).toHaveBeenLastCalledWith(expect.objectContaining({ phase: expect.stringMatching(/^(paused|stopped)$/) }));
+  });
+
+  it.each([400, 404])('pauses permanent ACK HTTP %i without retrying DELETE or taking the next receipt', async code => {
+    const h = harness();
+    h.api.receiveNotification.mockResolvedValue(receipt());
+    h.api.deleteNotification.mockRejectedValue(new GreenApiError('permanent ACK error', { kind: 'http', status: code }));
+    await h.run();
+    expect(h.onNotification).toHaveBeenCalledTimes(1);
+    expect(h.api.deleteNotification).toHaveBeenCalledTimes(1);
+    expect(h.api.receiveNotification).toHaveBeenCalledTimes(1);
+    expect(h.delay).not.toHaveBeenCalled();
+    expect(h.onStatus).toHaveBeenLastCalledWith(expect.objectContaining({ phase: 'paused' }));
+  });
+
+  it.each([408, 500])('still retries transient HTTP %i for receive and ACK', async code => {
+    const h = harness();
+    const error = new GreenApiError('transient server error', { kind: 'http', status: code });
+    h.api.receiveNotification.mockRejectedValueOnce(error).mockResolvedValueOnce(receipt()).mockImplementationOnce(h.finishReceive);
+    h.api.deleteNotification.mockRejectedValueOnce(error).mockResolvedValueOnce(true);
+    await h.run();
+    expect(h.api.receiveNotification).toHaveBeenCalledTimes(3);
+    expect(h.api.deleteNotification).toHaveBeenCalledTimes(2);
+    expect(h.onNotification).toHaveBeenCalledTimes(1);
+    expect(h.delay.mock.calls.map(call => call[0])).toEqual([1000, 1000]);
+  });
+
+  it.each([
+    [new GreenApiError('auth', { kind: 'http', status: 401 }), 'stopped'],
+    [new GreenApiError('offline', { kind: 'network' }), 'paused'],
+  ] as const)('does not consume the next receipt when current authorization cannot be verified (%s)', async (error, phase) => {
+    const h = harness();
+    h.api.receiveNotification.mockResolvedValue(receipt(1, { typeWebhook: 'stateInstanceChanged', stateInstance: 'notAuthorized' }));
+    h.api.getStateInstance.mockRejectedValue(error);
+    await h.run();
+    expect(h.api.deleteNotification).toHaveBeenCalledExactlyOnceWith(1, h.controller.signal);
+    expect(h.api.receiveNotification).toHaveBeenCalledTimes(1);
+    expect(h.onStatus).toHaveBeenLastCalledWith(expect.objectContaining({ phase }));
+  });
+
+  it('ACKs the queued state before checking authorization and ignores a late state result after logout', async () => {
+    const h = harness();
+    const ack = deferred<boolean>();
+    const current = deferred<string>();
+    h.api.receiveNotification.mockResolvedValue(receipt(1, { typeWebhook: 'stateInstanceChanged', stateInstance: 'notAuthorized' }));
+    h.api.deleteNotification.mockReturnValue(ack.promise);
+    h.api.getStateInstance.mockReturnValue(current.promise);
+    const pending = h.run();
+    await flushPromises();
+    expect(h.api.getStateInstance).not.toHaveBeenCalled();
+    ack.resolve(true);
+    await flushPromises();
+    expect(h.api.getStateInstance).toHaveBeenCalledExactlyOnceWith(h.controller.signal);
+    h.controller.abort();
+    current.resolve('notAuthorized');
+    await pending;
+    expect(h.onStatus.mock.calls.some(([value]) => value.phase === 'stopped')).toBe(false);
+    expect(h.api.receiveNotification).toHaveBeenCalledTimes(1);
   });
 
   it('ignores a receive that finishes after abort', async () => {
@@ -228,6 +316,33 @@ describe('sequential notification consumption', () => {
 });
 
 describe('abortable timer and single consumer lock', () => {
+  // Браузер ограничивает один setTimeout signed32; длинный Retry-After не должен стать 1 мс.
+  it('does not collapse a large Retry-After delay to an immediate timeout and remains abortable', async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    let finished = false;
+    const pending = abortableDelay(2_592_000_000, controller.signal).then(() => { finished = true; });
+    await vi.advanceTimersByTimeAsync(1);
+    expect(finished).toBe(false);
+    controller.abort();
+    await pending;
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('waits the complete oversized duration rather than stopping after its first safe chunk', async () => {
+    vi.useFakeTimers();
+    const controller = new AbortController();
+    let finished = false;
+    const pending = abortableDelay(2_147_483_657, controller.signal).then(() => { finished = true; });
+    await vi.advanceTimersByTimeAsync(2_147_483_647);
+    expect(finished).toBe(false);
+    await vi.advanceTimersByTimeAsync(9);
+    expect(finished).toBe(false);
+    await vi.advanceTimersByTimeAsync(1);
+    await pending;
+    expect(finished).toBe(true);
+  });
+
   it('completes delay at its boundary, and clears a pending timer on abort', async () => {
     vi.useFakeTimers();
     const controller = new AbortController();

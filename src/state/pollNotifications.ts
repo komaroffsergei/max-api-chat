@@ -6,14 +6,22 @@ import type { NotificationEvent, PollingStatus } from '../types';
 export function abortableDelay(milliseconds: number, signal: AbortSignal): Promise<void> {
   return new Promise(resolve => {
     if (signal.aborted) return resolve();
+    // setTimeout переполняется после ~24,8 дня. Длинный Retry-After ждём частями.
+    let remaining = Math.max(0, milliseconds);
+    let timer: ReturnType<typeof setTimeout>;
     const finish = () => { clearTimeout(timer); signal.removeEventListener('abort', finish); resolve(); };
-    const timer = setTimeout(finish, milliseconds);
+    const schedule = () => {
+      const chunk = Math.min(remaining, 2_147_483_647);
+      remaining -= chunk;
+      timer = setTimeout(() => remaining > 0 ? schedule() : finish(), chunk);
+    };
+    schedule();
     signal.addEventListener('abort', finish, { once: true });
   });
 }
 
 type LoopOptions = {
-  api: Pick<GreenApiClient, 'receiveNotification' | 'deleteNotification'>;
+  api: Pick<GreenApiClient, 'receiveNotification' | 'deleteNotification' | 'getStateInstance'>;
   signal: AbortSignal;
   onNotification: (event: NotificationEvent) => void;
   onStatus: (status: PollingStatus) => void;
@@ -22,6 +30,12 @@ type LoopOptions = {
 
 function safeError(error: unknown): string {
   return error instanceof GreenApiError ? error.message : 'Не удалось получить уведомление.';
+}
+
+function cannotRetry(error: unknown): boolean {
+  // 408/429 и сбои сети можно переждать. Ошибку адреса или настроек повтор не исправит.
+  return error instanceof GreenApiError && (error.kind === 'format' ||
+    (error.status !== null && error.status >= 400 && error.status < 500 && ![408, 429].includes(error.status)));
 }
 
 // Читаем очередь последовательно: обработка события всегда предшествует DELETE.
@@ -39,8 +53,8 @@ export async function runNotificationLoop({ api, signal, onNotification, onStatu
     } catch (error) {
       if (signal.aborted) return;
       if (isAuthorizationError(error)) { onStatus({ phase: 'stopped', message: safeError(error) }); return; }
-      if (error instanceof GreenApiError && error.kind === 'format') {
-        onStatus({ phase: 'paused', message: error.message }); return;
+      if (cannotRetry(error)) {
+        onStatus({ phase: 'paused', message: `${safeError(error)} Проверьте настройки инстанса и повторите приём.` }); return;
       }
       const wait = error instanceof GreenApiError && error.retryAfterMs !== null
         ? error.retryAfterMs
@@ -75,6 +89,9 @@ export async function runNotificationLoop({ api, signal, onNotification, onStatu
       } catch (error) {
         if (signal.aborted) return;
         if (isAuthorizationError(error)) { onStatus({ phase: 'stopped', message: safeError(error) }); return; }
+        if (cannotRetry(error)) {
+          onStatus({ phase: 'paused', message: `${safeError(error)} Уведомление не подтверждено. Проверьте настройки и повторите приём.` }); return;
+        }
         if (attempt === 2) {
           onStatus({ phase: 'paused', message: 'Не удалось подтвердить уведомление после трёх попыток. Повторите приём.' });
           return;
@@ -87,8 +104,19 @@ export async function runNotificationLoop({ api, signal, onNotification, onStatu
 
     if (!acknowledged || signal.aborted) return;
     if (event.kind === 'state' && event.state.toLowerCase() !== 'authorized') {
-      onStatus({ phase: 'stopped', message: 'Инстанс потерял авторизацию в Telegram. Выйдите и подключитесь снова.' });
-      return;
+      // В очереди может лежать старое событие от прошлого входа. Проверяем состояние сейчас.
+      try {
+        const state = await api.getStateInstance(signal);
+        if (signal.aborted) return;
+        if (state.toLowerCase() !== 'authorized') {
+          onStatus({ phase: 'stopped', message: 'Инстанс потерял авторизацию в Telegram. Выйдите и подключитесь снова.' });
+          return;
+        }
+      } catch (error) {
+        if (signal.aborted) return;
+        onStatus({ phase: isAuthorizationError(error) ? 'stopped' : 'paused', message: `${safeError(error)} Не удалось проверить авторизацию. Повторите приём.` });
+        return;
+      }
     }
   }
 }

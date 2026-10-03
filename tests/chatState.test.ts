@@ -68,6 +68,16 @@ describe('session chat state', () => {
     expect(state.chats[1].title).toBe('Тестовый получатель');
   });
 
+  it('uses a visible group recipient fallback when the group name is absent and preserves it after replying', () => {
+    const groupId = '-10000000000000';
+    const body = incomingBody({ chat: groupId });
+    const event = normalizeNotification({ ...body, senderData: { chatId: groupId, chatType: 'supergroup', senderName: 'Алиса' } });
+    let state = chatReducer(createInitialChatState(), { type: 'notification', event });
+    expect(state.chats[0]).toMatchObject({ isGroup: true, title: `Группа ${groupId}` });
+    state = chatReducer(state, { type: 'messageSent', message: outgoing({ chatId: groupId }) });
+    expect(state.chats[0]).toMatchObject({ isGroup: true, title: `Группа ${groupId}` });
+  });
+
   it('applies an early status after send resolves and clears its pending entry', () => {
     const early = status(opened(), 'read');
     expect(Object.values(early.pendingStatuses)).toEqual(['read']);
@@ -99,6 +109,27 @@ describe('session chat state', () => {
     const state = chatReducer(createInitialChatState(), { type: 'notification', event: { kind: 'status', chatId, messageId: null, status: 'noAccount' } });
     expect(state.chats).toHaveLength(1);
     expect(state.chats[0]).toMatchObject({ id: chatId, messages: [], error: expect.stringContaining('ошибке отправки') });
+  });
+
+  // Ошибка может прийти после потери ответа SendMessage: её видимость не зависит от найденного пузыря.
+  it.each(['failed', 'noAccount'] as const)('shows unmatched %s and retains the early status for a delayed send response', failure => {
+    let initial = chatReducer(opened(), { type: 'setDraft', chatId, text: 'Неизвестный результат' });
+    initial = chatReducer(initial, { type: 'chatError', chatId, error: 'Результат отправки неизвестен. Проверьте чат.' });
+    const failed = status(initial, failure, 'lost-response-id');
+    expect(failed.chats[0]).toMatchObject({ draft: 'Неизвестный результат', messages: [], error: expect.stringContaining('ошибке отправки') });
+    expect(Object.values(failed.pendingStatuses)).toEqual([failure]);
+    const resolved = chatReducer(failed, { type: 'messageSent', message: outgoing({ id: 'lost-response-id' }) });
+    expect(resolved.chats[0].messages).toHaveLength(1);
+    expect(resolved.chats[0].messages[0].status).toBe(failure);
+    expect(resolved.chats[0].draft).toBe('Неизвестный результат');
+    expect(resolved.pendingStatuses).toEqual({});
+  });
+
+  it.each(['failed', 'noAccount'] as const)('creates a visible chat for unmatched %s with an id without fabricating message text', failure => {
+    const state = status(createInitialChatState(), failure, 'unmatched-id');
+    expect(state.chats).toHaveLength(1);
+    expect(state.chats[0]).toMatchObject({ id: chatId, messages: [], error: expect.stringContaining('ошибке отправки') });
+    expect(Object.values(state.pendingStatuses)).toEqual([failure]);
   });
 
   it.each(['failed', 'noAccount'] as const)('retains a chat-level %s error when an unrelated message arrives or a later send is queued', failure => {

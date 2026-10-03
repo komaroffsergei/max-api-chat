@@ -166,6 +166,13 @@ describe('GREEN-API contract with a denied-by-default fetch mock', () => {
     await expect(createGreenApiClient(credentials).receiveNotification()).rejects.toMatchObject({ retryAfterMs: 5000 });
   });
 
+  it('never exposes an infinite retry duration after converting an oversized header to milliseconds', async () => {
+    vi.mocked(fetch).mockResolvedValue(json({}, 429, { 'Retry-After': '1e308' }));
+    const error = await createGreenApiClient(credentials).receiveNotification().catch(value => value);
+    expect(error).toBeInstanceOf(GreenApiError);
+    expect(error.retryAfterMs === null || Number.isFinite(error.retryAfterMs)).toBe(true);
+  });
+
   it.each(['<html>upstream error</html>', '{broken'])('rejects malformed JSON %j', async body => {
     vi.mocked(fetch).mockResolvedValue(new Response(body));
     await expect(createGreenApiClient(credentials).getStateInstance()).rejects.toMatchObject({ kind: 'format' });

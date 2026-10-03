@@ -40,6 +40,9 @@ export function normalizeNotification(value: unknown): NotificationEvent {
     return {
       kind: 'incoming',
       senderName: typeof sender?.senderName === 'string' && sender.senderName.trim() ? sender.senderName : null,
+      // Имя автора сообщения и название группы — разные вещи. Ответ уйдёт в chatId.
+      chatName: typeof sender?.chatName === 'string' && sender.chatName.trim() ? sender.chatName : null,
+      isGroup: sender?.chatType === 'group' || sender?.chatType === 'supergroup',
       message: {
         id: requiredString(body?.idMessage),
         chatId: requiredString(sender?.chatId),

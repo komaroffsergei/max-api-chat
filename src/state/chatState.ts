@@ -10,7 +10,7 @@ export type ChatAction =
   | { type: 'openChat'; chatId: string; phone: string }
   | { type: 'selectChat'; chatId: string }
   | { type: 'setDraft'; chatId: string; text: string }
-  | { type: 'messageSent'; message: Message; submittedDraft: string }
+  | { type: 'messageSent'; message: Message; submittedDraft?: string }
   | { type: 'notification'; event: NotificationEvent }
   | { type: 'chatError'; chatId: string; error: string | null }
   | { type: 'clear' };
@@ -34,7 +34,7 @@ function statusKey(chatId: string, messageId: string): string {
   return `${chatId}:${messageId}`;
 }
 
-function addMessage(state: ChatState, message: Message, senderName?: string | null, submittedDraft?: string): ChatState {
+function addMessage(state: ChatState, message: Message, senderName?: string | null, submittedDraft?: string, isGroup?: boolean): ChatState {
   const existing = state.chats.find(chat => chat.id === message.chatId);
   const chat = existing ?? newChat(message.chatId, '', senderName ?? '');
   const pendingKey = statusKey(message.chatId, message.id);
@@ -46,6 +46,7 @@ function addMessage(state: ChatState, message: Message, senderName?: string | nu
     : [...chat.messages, normalized];
   const updated = {
     ...chat,
+    ...(isGroup ? { isGroup: true, title: senderName || `Группа ${message.chatId}` } : {}),
     messages,
     draft: submittedDraft !== undefined && chat.draft === submittedDraft ? '' : chat.draft,
     error: chat.error,
@@ -77,7 +78,7 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case 'messageSent': return addMessage(state, action.message, null, action.submittedDraft);
     case 'notification': {
       const event = action.event;
-      if (event.kind === 'incoming') return addMessage(state, event.message, event.senderName);
+      if (event.kind === 'incoming') return addMessage(state, event.message, event.isGroup ? event.chatName || `Группа ${event.message.chatId}` : event.senderName, undefined, event.isGroup);
       if (event.kind !== 'status') return state;
       if (!event.messageId) {
         const existing = state.chats.find(chat => chat.id === event.chatId);
@@ -87,7 +88,14 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
       const key = statusKey(event.chatId, event.messageId);
       const chat = state.chats.find(item => item.id === event.chatId);
       if (!chat?.messages.some(message => message.id === event.messageId)) {
-        return { ...state, pendingStatuses: { ...state.pendingStatuses, [key]: mergeStatus(state.pendingStatuses[key], event.status) } };
+        // Ответ SendMessage мог потеряться. Окончательную ошибку всё равно показываем.
+        const failed = event.status === 'failed' || event.status === 'noAccount';
+        const updated = failed ? { ...(chat ?? newChat(event.chatId)), error: 'GREEN-API сообщил об ошибке отправки в этом чате.' } : chat;
+        return {
+          ...state,
+          chats: failed && updated ? (chat ? state.chats.map(item => item.id === event.chatId ? updated : item) : [...state.chats, updated]) : state.chats,
+          pendingStatuses: { ...state.pendingStatuses, [key]: mergeStatus(state.pendingStatuses[key], event.status) },
+        };
       }
       return {
         ...state,

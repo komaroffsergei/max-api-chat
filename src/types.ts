@@ -19,6 +19,7 @@ export type Chat = {
   id: string;
   phone: string;
   title: string;
+  isGroup?: boolean;
   messages: Message[];
   draft: string;
   error: string | null;
@@ -30,7 +31,7 @@ export type NotificationReceipt = {
 };
 
 export type NotificationEvent =
-  | { kind: 'incoming'; message: Message; senderName: string | null }
+  | { kind: 'incoming'; message: Message; senderName: string | null; chatName?: string | null; isGroup?: boolean }
   | { kind: 'status'; chatId: string; messageId: string | null; status: MessageStatus }
   | { kind: 'state'; state: string }
   | { kind: 'ignored'; type: string };
